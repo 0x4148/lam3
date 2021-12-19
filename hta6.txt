@@ -1,0 +1,431 @@
+<html>
+<head>
+<script language="vbscript">
+Option Explicit 
+' On Error Resume Next
+Dim strDefSel:     strDefSel = "WIN32_OPERATINGSYSTEM"
+
+Sub Window_OnLoad
+	' On Error Resume Next
+	window.document.title = "WMI Cimv2 Classes on: " & GetLocCompName 
+	'set title with local computername by calling function
+	window.document.getElementById("PCName").InnerHTML = GetLocCompName 
+	'set computername in header <h1> tag
+	window.document.getElementById("strComputerName").focus 
+	'focus to the inputbox to specify another pc    
+	GetClasses 
+	'automatically load classes.
+End Sub
+
+Sub GetClasses
+	'On Error Resume Next
+	
+	Dim strComputer, objWMIService, objclass, objArray, classname, strOutput, strTemp, objIE
+	strComputer = UCase(window.document.getElementById("strComputerName").Value) 
+	
+	'get computername from input box
+	
+	If strComputer = "" Or strComputer = GetLocCompName Or _
+		strComputer = "LOCALHOST" Or strComputer = "127.0.0.1" Or strComputer = "." Then
+		strComputer = GetLocCompName 
+		'if input box is empty, use local computer name by calling a Function
+		window.document.getElementById("strComputerName").Value = strComputer
+		window.document.getElementById("PCName").innerHTML = strComputer & " (Local)"
+	Else
+		window.document.getElementById("PCName").innerHTML = strComputer 
+		'set computer name in header if different from local    
+	End If
+	
+	If Ping(strComputer) = False Then
+		'test connectivity with ping Function
+		alert "Computer specified is unreachable!!"
+		window.document.getElementById("strComputerName").Value = "" 
+		'reset input box if the machine is unreachable
+		Exit Sub
+	End If
+	
+	window.document.title = "WMI Cimv2 Classes on: " & strComputer 
+	
+	'set title to new computer name if different from local        
+	
+	Set objIE = IEProgressBar("Retrieving Cimv2 Class Names...") 
+	
+	'display progress window    
+	
+	On Error Resume Next    
+	Set objWMIService = objWMI(strComputer, "classes") 
+	
+	'query remote machine for classes    
+	
+	If IsEmpty(objWMIService) Then
+		objIE.Quit 'terminate IE if error is encountered with WMI connection
+		Set objIE = Nothing
+		window.document.getElementById("classes").innerHTML = ""
+		window.document.getElementById("classvalues").innerHTML = ""
+		Exit Sub
+	End If
+	
+	On Error GoTo 0
+	Set objArray = CreateObject("System.Collections.ArrayList") 
+	
+	'create .Net array
+	
+	For Each objclass in objWMIService.SubclassesOf()
+		objArray.Add objClass.Path_.Class 
+		'add to array
+	Next
+	objArray.Sort 
+	'sort array
+	strOutput = "<select id='classname' onchange='clearselections'>" 
+	
+	'begin building drop down
+	
+	For Each classname In objArray
+		strTemp = classname
+		If UCase(strTemp) = UCase(strDefSel) Then 
+			'define the default selected class
+			strOutput = strOutput & "<option value='" & strTemp & "' selected>" & strTemp & "</option>"
+		Else
+			strOutput = strOutput & "<option value='" & strTemp & "'>" & strTemp & "</option>"
+		End If
+	Next
+	
+	objIE.Quit
+	Set objIE = Nothing
+	Set objArray = Nothing
+	
+	window.document.getElementById("classes").innerHTML = strOutput & "</select>" 
+	
+	'write out to body
+	
+	GetClassValues 
+	'automatically get class values
+End Sub
+
+Sub GetClassValues
+	
+	'On Error Resume Next
+	
+	Dim wmiQuery, colItems, objItem, strOutput, strComputer, strClass, objProp
+	Dim strName, strValue, objIE, strWQL, objArray, propertiesHTML, strProperty
+	Dim strProp
+	
+	strComputer = UCase(window.document.getElementById("strComputerName").Value) 
+	
+	'get computername from input box
+	
+	If strComputer = "" Or strComputer = GetLocCompName Or strComputer = "LOCALHOST" Or _
+		strComputer = "127.0.0.1" Or strComputer = "." Then        
+		strComputer = GetLocCompName 
+		'if input box is empty, use local computer name by calling a Function
+		window.document.getElementById("strComputerName").Value = strComputer
+	End If
+	
+	window.document.getElementById("getbtn").focus
+	strClass = window.document.getElementById("classname").value
+	strWQL = window.document.getElementById("wql").value
+	strProp = window.document.getElementById("wmiproperties").value
+	strDefSel = UCase(strClass)
+	
+	If UCase(strProp) = "OTHER" Then
+		strProp = window.document.getElementById("othervalue").value
+	End If
+	
+	If strWQL = "" Or IsNull(strWQL) Then
+		wmiQuery = "Select " & strProp & " From " & strClass  
+		'define WMI query
+	Else
+		wmiQuery = "Select " & strProp & " From " & strClass & " Where " & strWQL
+	End If
+	
+	' begin building table
+	
+	Set objIE = IEProgressBar("Retrieving " & strClass & " Values...")
+	On Error Resume Next
+	Set colItems = objWMI(strComputer, wmiQuery) 
+	
+	'retrieve WMI collection by calling the objWMI function
+	
+	If IsEmpty(colItems) Then
+		objIE.Quit
+		Set objIE = Nothing
+		window.document.getElementById("classes").innerHTML = ""
+		window.document.getElementById("classvalues").innerHTML = ""
+		Exit Sub
+	End If
+	
+	If colItems.Count = 0 Then
+		objIE.Quit
+		Set objIE = Nothing
+		window.document.getElementById("classvalues").innerHTML = "This class contains no data or you supplied an invalid query!"
+		Exit Sub
+	End If
+	
+	On Error GoTo 0
+	strOutput = "<strong>Class Name:</strong>&nbsp;&nbsp;" & _
+		"<a href='http://search.msdn.microsoft.com/search/default.aspx?siteId=0&tab=0&query=" & _
+		strClass & "' target='blank_'>" & _
+		strClass & "</a><br /><strong>Instances:</strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & _
+		colItems.Count & "<br /><table width='100%' border='0'>" & _
+		"<tr><td style='text-decoration:underline'><strong>Property Name</strong></td>" & _
+		"<td style='text-decoration:underline'><strong>Value</strong></td></tr>"
+	
+	propertiesHTML = "<select id='wmiproperties'><option value='*'>*</option>"
+
+	Set objArray = CreateObject("System.Collections.ArrayList") 
+
+	'create .Net array
+	
+	For Each objItem In colItems 'loop through the collection
+		For Each objProp In objItem.Properties_
+			strName = objProp.Name
+			If IsArray(objProp.Value) Then
+				strValue = Join(objProp.Value, ";") 
+				'if value is an array, join them
+			Else
+				strValue = objProp.Value
+			End If
+			If Not (IsNull(strValue) Or strValue = "") Then 
+				'only display properties with values
+				If Not objArray.Contains(strName) Then
+					If InStr(UCase(strProp), UCase(strName)) Or strProp = "*" Then
+						objArray.Add strName
+					End If
+				End If
+				If ValUTC(strValue) Then ' check to see if value is UTC
+					strValue = ConvertDT(strValue) 
+					' convert to normal date/time format
+				End If
+				If (InStr(UCase(strProp), UCase(strName)) Or strProp = "*") And Not (strName = "" Or strValue = "") Then 
+					strOutput = strOutput & "<tr>" & _
+					"<td>" & strName & "</td>" & _
+					"<td>" & strValue & "</td>" & _
+					"</tr>"
+				End If
+			End If
+		Next
+		If (InStr(UCase(strProp), UCase(strName)) Or strProp = "*") And Not (strName = "" Or strValue = "") Then
+			strOutput = strOutput & "<tr><td colspan='2'><hr></td></tr>"
+		End If
+	Next
+	
+	objArray.Sort
+	
+	For Each strProperty In objArray
+		If UCase(strProp) = UCase(strProperty) Then
+			propertiesHTML = propertiesHTML & "<option value='" & strProperty & "' selected>" & strProperty & "</option>"
+		Else
+			propertiesHTML = propertiesHTML & "<option value='" & strProperty & "'>" & strProperty & "</option>"
+		End If
+	Next
+	
+	propertiesHTML = propertiesHTML & "<option value='other'>Other</option>"
+	window.document.getElementById("dispprop").innerHTML = propertiesHTML & "</select>"
+	objIE.Quit
+	window.document.getElementById("classvalues").innerHTML = strOutput & "</table>" 
+	
+	'display data
+
+	Set objIE = Nothing
+	Set objArray = Nothing
+	Set colItems = Nothing
+End Sub
+
+Sub clearselections
+	' On Error Resume Next
+	window.document.getElementById("dispprop").innerHTML = "<select id='wmiproperties'><option value='*' selected>*</option></select>"
+	window.document.getElementById("othervalue").value = ""
+	window.document.getElementById("wql").value = ""
+End Sub
+	
+Function GetLocCompName
+	'On Error Resume Next
+	Dim objNetwork
+	Set objNetwork = CreateObject("WScript.Network")
+	GetLocCompName = UCase(objNetwork.ComputerName) 
+	
+	'get local computer name
+	Set objNetwork = Nothing
+End Function
+
+Function Ping(strRmtPC)	
+	'On Error Resume Next
+	Dim wmiQuery, objPing, objStatus, blnStatus
+	wmiQuery = "Select * From Win32_PingStatus Where Address = '" & strRmtPC & "'"
+	Set objPing = objWMI(".", wmiQuery)
+	For Each objStatus in objPing
+		If IsNull(objStatus.StatusCode) Or objStatus.Statuscode<>0 Then
+			blnStatus = False 
+			'Not Reachable
+		Else
+			blnStatus = True 
+			'Reachable
+		End If
+	Next
+	Ping = blnStatus
+	Set objPing = Nothing
+End Function
+	
+Function objWMI(strComputer, strWQL)
+	'On Error Resume Next
+	Dim wmiNS, objWMIService, objSWbemLocator, objSWbemServices
+	Dim strUID, strPwd
+	wmiNS = "\root\cimv2"
+	strUID = window.document.getElementById("strUserID").value
+	strPwd = window.document.getElementById("strPass").value
+	If strComputer = "." Or strComputer = GetLocCompName Then 
+		'prevent alternate credentials for local machine
+		strUID = ""
+		strPwd = ""
+	End If
+	Set objSWbemLocator = CreateObject("WbemScripting.SWbemLocator")
+	On Error Resume Next
+	Set objSWbemServices = objSWbemLocator.ConnectServer(strComputer, wmiNS, strUID, strPwd)
+	
+	Select Case Err.Number
+		Case -2147024891
+			window.document.getElementById("accessdenied").innerHTML = "Access Denied! Please check the credentials supplied."
+			Exit Function
+	End Select
+	On Error GoTo 0
+	window.document.getElementById("accessdenied").innerHTML = ""
+	Select Case UCase(strWQL)
+		Case "CLASSES"
+			Set objWMI = objSWbemServices
+		Case Else
+			Set objWMI = objSWbemServices.ExecQuery(strWQL)
+	End Select
+	
+	Set objSWbemServices = Nothing
+	Set objSWbemLocator = Nothing
+End Function
+
+Function ValUTC(strInput)
+	
+	Dim RegEx: Set RegEx = New RegExp
+	RegEx.Pattern = "\d{14}.\d{6}\D{1}\d{3}" 
+	
+	' check for value similar to this 20070202230659.500000-480
+	
+	RegEx.IgnoreCase = True
+	RegEx.Global = True
+	ValUTC = RegEx.Test(strInput)
+	Set RegEx = Nothing
+End Function
+	
+Function ConvertDT(strDT)
+	'On Error Resume Next
+	Dim objTime:    Set objTime = CreateObject("WbemScripting.SWbemDateTime")
+	objTime.Value = strDT
+	ConvertDT = objTime.GetVarDate 
+	'convert UTC to Standard Time; from 20070202230659.500000-480 to 2/2/2007 11:06:59 PM
+	Set objTime = Nothing
+End Function
+	
+Function IEProgressBar(strMsg)
+	'On Error Resume Next
+	Dim objExplorer, objShell, strOutput
+	Set objShell = CreateObject("WScript.Shell")
+	Set objExplorer = CreateObject("InternetExplorer.Application") 
+	
+	'create IE object
+	
+	objExplorer.Navigate "about:blank"
+	objExplorer.ToolBar = 0
+	objExplorer.StatusBar = 0
+	objExplorer.Width= 550
+	objExplorer.Height = 250
+	objExplorer.Document.Body.Style.Cursor = "wait"
+	objExplorer.Visible = 1
+	objExplorer.Document.Open
+	objExplorer.Document.Write "<html><head><title>" & strMsg & "</title></head><body bgcolor='#272936'>" & _
+		"<span style='color: #FFFFFF; font-family: Times New Roman; background-color: #272936; font-size:24pt'>" & _
+		"<div align='center'>" & strMsg & "<br><br>" & _
+		"<img border='0' src='http://dm4ever1.googlepages.com/wait.gif' alt= width='90' height='20'>" & _
+		"</div></span></body></html>"
+	
+	objExplorer.Document.Close
+	objshell.AppActivate "Retrieving" 
+	
+	'set focus to new window.
+	
+	Set IEProgressBar = objExplorer
+	Set objExplorer = Nothing
+	Set objShell = Nothing
+End Function
+
+</script>
+<hta:application applicationname="WMI Cimv2 Classes"
+	border="dialog" borderstyle="normal" caption="WMI Cimv2 Classes" 
+	contextmenu="yes" icon="images\icon.ico" maximizebutton="yes"
+	minimizebutton="yes"navigable="yes"scroll="no"selection="yes"
+	showintaskbar="yes"singleinstance="yes"sysmenu="yes"version="1.0"
+	windowstate="normal">
+<style type="text/css">
+
+td {
+font-family: "verdana", Times, serif;
+font-size: 18px;
+font-style: normal;
+font-weight: normal;
+font-variant: normal;
+color: #FFFFFF;
+overflow:auto;
+vertical-align: top;}
+
+a:link {
+color:#ffffff;
+font-size:18px;
+font-family:"Times New Roman", Times, serif;
+text-decoration:none;
+font-style: normal;
+font-variant: normal;}
+
+a:visited {
+color:#ffffff;
+font-size:18px;
+font-family:"verdana", Times, serif;
+text-decoration:none;
+font-style: normal;
+font-variant: normal;}
+
+a:hover {
+color:#ffffff;
+font-size:18px;
+font-family:"verdana", Times, serif;
+text-decoration:underline;
+font-style: normal;
+font-variant: normal;}
+
+.access {
+color:#ffffff;
+font-size:20px;
+font-family:"verdana", Times, serif;
+}
+</style>
+</head>
+<body bgcolor="#272936" style="overflow:auto;color:#FFFFFF;font-family:verdana;font-size:10pt;">
+<h1>WMI Cimv2 Classes on: <span id="PCName"></span></h1>
+Connect To: <input type="text" id="strComputerName" onKeyPress="if window.event.keycode = 13 then GetClasses">&nbsp;&nbsp;UserName: <input type="text" id="strUserID" value="">&nbsp;&nbsp; Password: <input type="password" id="strPass" value="">&nbsp;&nbsp; <input type="button" value="Connect" onclick="GetClasses">
+<br /><span style="color=#CC0000"><strong>NOTE:</strong> Alternate credential can not be used for the local machine. Local credentials will always be used for local queries.</span>
+<div align="center" class="access"><span id="accessdenied"></span></div>
+<table width="100%">    
+<tr>        
+<td>Select</td>
+<td><span id="dispprop"><select id="wmiproperties"><option value="*">*</option></select></span>
+&nbsp;&nbsp;(if other, specify)&nbsp;&nbsp;<input type="text" id="othervalue"></td>
+</tr>
+<tr>
+<td>From (Class Name):&nbsp;&nbsp;</td>
+<td><span id="classes"></span></td>
+</tr>
+<tr>
+<td>Where (Optional):</td>
+<td><input type="text" id="wql" onKeyPress="if window.event.keycode = 13 then GetClassValues"></td>
+</tr>
+<tr>
+<td colspan="2"><input type="button" id="getbtn" value="Get Class Values" onclick="GetClassValues"></td>
+</tr></table><br />
+<span id="classvalues"></span>
+</body>
+</html>
