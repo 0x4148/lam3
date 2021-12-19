@@ -2,7 +2,7 @@
 <head>
 <HTA:APPLICATION ID="lolz">
 <script language="jscript">
-        var c = "cmd.exe /c cmd.exe"; 
+        var c = "powershell.exe"; 
         new ActiveXObject('WScript.Shell').Run(c);
 </script>
 </head>
