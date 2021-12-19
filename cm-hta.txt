@@ -1,0 +1,27 @@
+<html><head>
+<SCRIPT LANGUAGE="VBScript">
+
+    Sub Window_onLoad
+        window.resizeTo 600,150
+    End Sub 
+
+</SCRIPT>
+<script language="javascript">
+function jnk()
+{
+
+var c = document.getElementById('lolz').value; 
+new ActiveXObject('WScript.Shell').Run(c);
+alert("Executed "+c);
+}
+</script>
+</head>
+<body>
+
+<table>
+<tr>
+<td>Input: </td>
+<td><input type="text" name="lolz" value="" size=50 id="lolz"></td><br><br>
+<td><input type="button" onclick="jnk()" value="submit"></td>
+</tr>
+</table>
