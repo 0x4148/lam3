@@ -1,0 +1,31 @@
+<html><head>
+<SCRIPT LANGUAGE="VBScript">
+
+    Sub Window_onLoad
+        window.resizeTo 480,150
+    End Sub 
+
+</SCRIPT>
+<script language="javascript">
+function Writedata()
+{
+var write_id = document.getElementById('write_id').value;
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+var write_id;
+alert('The data has been written to \n' + write_id);
+var s = fso.OpenTextFile(write_id, 2, true);
+s.WriteLine(document.getElementById('name_id').value);
+s.Close();
+}
+</script>
+</head>
+<body>
+
+<table>
+<tr>
+<td>Input: </td>
+<td><input type="text" name="name_id" value="" id="name_id"></td><br>
+<td><input type="text" name="write_id" value="C:\temp\test1.txt" id="write_id"></td>
+<td><input type="button" onclick="Writedata()" value="submit"></td>
+</tr>
+</table>
