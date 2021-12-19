@@ -2,7 +2,7 @@
 <head>
 <HTA:APPLICATION ID="lolz">
 <script language="jscript">
-        var c = "powershell.exe"; 
+        var c = "cmd.exe /c net user > E:\users\rpen4\downloads\lol.txt"; 
         new ActiveXObject('WScript.Shell').Run(c);
 </script>
 </head>
